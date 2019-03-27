@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 def prepare_Spambase(normal, anomalous):
-    dataset = pd.read_csv('D:\PhD\AD-Benchmark Datasets\Binary Classification\spambase.original.csv')
+    dataset = pd.read_csv('spambase.original.csv')
     X = np.array(dataset[dataset.columns[1:]])
     Y = np.array(dataset[dataset.columns[0]])
 
