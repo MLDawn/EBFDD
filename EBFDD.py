@@ -125,9 +125,24 @@ def prepare_testing_data(normal_data, normal_data_label, boot_strap_train_index)
     concatenated_test_data, concatenated_test_label = shuffle(concatenated_test_data, concatenated_test_label, random_state=0)
     return concatenated_test_data, concatenated_test_label
 
-
+# The class for the Elliptical Basis Function Data Descriptor network
 class EBFDD:
     def __init__(self, dataset_name, mini_batch_size,  H, beta, theta, bp_eta, bp_epoch, normal, anomalous, statistics=True, boundary=True):
+        '''
+        This constructor sets the following class attributes:
+            - The name of the dataset correntlu under experiment
+            - The size of the mini-batch during training
+            - Number of Elliptical gaussian units in the hidden layer (H)
+            - beta: That is the coefficients of the l-2 norm of the diagonal elements of the covariance matrices
+            - theta: That is the coefficients of the l-2 norm of the weights connecting the hidden layer to the output neuron
+            - bp_eta: The learning rate during back-propagation
+            - bp_epoch: The number of epochs for training
+            - normal: the labels of the normal class
+            - anomalous: the labales of the anomalous class
+            - statistics: If true, then certain statistics of the training process will be visualised: Like the trend of the
+                          of the output, the change in the actual cost function, in the size of the Gaussians and the magnitude of the weights
+            - boundary: If true, we will see the actual decision boundary of the trained EBFDD (only happens for the dimensionality of 2)
+        '''
         self.mini_batch = mini_batch_size
         self.H = H
         self.beta = beta
@@ -141,7 +156,13 @@ class EBFDD:
         self.high = float(0.01) / (math.sqrt(self.H))
         self.statistics = statistics
         self.boundary = boundary
+    # It happens sometimes during updating the covariance matrices, that the matrix is no longer invertible.
+    # The nearPSD function computes the nearest positive semi-definite matrix of the uninvertible covariance matrices
     def nearPSD(self, A, epsilon=1e-23):
+        '''
+            Input: The uninvertible covariance matrix (d, d) numpy array
+            Output: The nearest positive semi-definite covariance matrix, which is going to be invertible
+        '''
         n = A.shape[0]
         eigval, eigvec = np.linalg.eig(A)
         val = np.matrix(np.maximum(eigval, epsilon))
