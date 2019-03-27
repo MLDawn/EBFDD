@@ -178,27 +178,31 @@ class EBFDD:
         power[np.where(power > 709)] = 709
         return power
     def ebfdd_forward(self, X, m, cov, W):
+        '''
+            This function performs the forward pass.
+            Inputs: the input mini-batch of data(X), the means of the Gaussians(m), the covariance metrices(cov), and the weight vector(W)
+            Outputs:
+                - The output vector (y) of the network, that is a vector of the size of our minibatch, X
+                - The likelihoods of all the data points in X from each Gaussian (P), that is (H,mini-batchsize)
+                - Preactivation vector (Z) at the output neuron, that is a vector of the size of our minibatch, X
+                - The matrix (a) that holds the difference between X and our means m as this is important for the backprop
+        '''
         # It is important to store the INVERTED covariance matrices in ONE GO, as they are needed during
         # the Back-Propagation phase
         invcov = inv(cov)
-        # ------------------------------------ Forward pass Begins-------------------------------------
-        # Here we can brush-up the inverse alittle
-        # For huge numbers
-        # if np.linalg.cond(cov[h]) > np.finfo(cov[h].dtype).eps:
         a = (X - m[:, np.newaxis])
-        # # Optimised
         d = np.matmul(np.matmul(a, invcov), np.transpose(a, [0, 2, 1]))
-        #################
         power = -0.50 * np.diagonal(d, axis1=1, axis2=2)
-        # Now the array P(Hxn) has ALL the likelihoods of ALL the training data of ALL the Kernels
+        # This power should be exponentiated. But first we make sure to clip it to avoid overflow!
         power = self.clip_power(power)
+        # Now the array P has ALL the likelihoods of ALL the training data in X, for ALL the Gaussian Kernels
         P = np.exp(power)
-        # Here we have a column-wise multiplication between P(Hxn) and Weights (CAN be BETTER CODED)
-        # Z(n) is what is what the output neuron has received
+        # Z is what the output neuron has received
         Z = np.sum((P.T * W).T, axis=0)
+        # Here we compute the output vector, y, using Yann Lecun's recommended tanh() function in Efficient Backpropagation.
         y = 1.7159 * np.tanh(float(2 / 3) * Z)
-
         return y, P, Z, a
+    
     def ebfdd_backward(self, y, P, Z, a, cov, W, NUM):
         invcov = inv(cov)
         dEdZ = (y - 1) * (1.1439 * (1 - np.square(np.tanh(float(2 / 3) * Z))))
@@ -1135,22 +1139,7 @@ for algorithm in algorithm_collection:
             normal = scenario[0]
             anomalous = scenario[1]
             # Now prepare the corresponding dataset, accordingly
-            if dataset == 'MNIST':
-                from DataPreparationScripts import MNIST_Script as MNIST_Handler
-                # get all the data
-                [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = MNIST_Handler.prepare_MNIST(55000, 10000, normal, anomalous)
-                # for the sake of AEN, record the input dimension, which helps with choosing the encode_dim hyper parameter for the AEN
-                input_dim = normal_data.shape[1]
-                print("===============================================================")
-                print("MNIST loaded..."+'\n'+"(N, A)=%s" % str(scenario))
-            elif dataset == 'FASHION-MNIST':
-                classes = {0: "T-shirt/top", 1: "Trouser", 2: "Pullover", 3: "Dress", 4: "Coat", 5: "Sandal", 6: "Shirt", 7: "Sneaker", 8: "Bag", 9: "Ankle boot"}
-                [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = Fashion_MNIST_Script.prepare_Fashion_MNIST(normal, anomalous)
-                # for the sake of AEN, record the input dimension, which helps with choosing the encode_dim hyper parameter for the AEN
-                input_dim = normal_data.shape[1]
-                print("===============================================================")
-                print("FASHION-MNIST is loaded..."+'\n'+"(N, A)=%s" % str(scenario))
-            elif dataset == 'GAMMA':
+            if dataset == 'GAMMA':
                 [normal_data, normal_data_label, anomalous_data,anomalous_data_label] = gamma_Script.prepare_gamma(normal, anomalous)
                 input_dim = normal_data.shape[1]
                 print("===============================================================")
@@ -1169,12 +1158,6 @@ for algorithm in algorithm_collection:
                 input_dim = normal_data.shape[1]
                 print("===============================================================")
                 print("SKIN loaded..."+'\n'+"(N, A)=%s" % str(scenario))
-            elif dataset == 'PARTICLE':
-                # get all the data
-                [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = PARTICLE_Script.prepare_particle(normal, anomalous)
-                input_dim = normal_data.shape[1]
-                print("===============================================================")
-                print("PARTICLE loaded..."+'\n'+"(N, A)=%s" % str(scenario))
             elif dataset == 'FAULT':
                 [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = Fault_Script.prepare_fault(
                     normal, anomalous)
