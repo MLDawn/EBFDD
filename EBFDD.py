@@ -28,7 +28,7 @@ from keras import optimizers
 import sys
 np.random.seed(1)
 r.seed(1)
-
+# This will normalize the data between 0 and 1
 def normalize(X):
     maximum = np.max(X, axis=0)
     minimum = np.min(X, axis=0)
