@@ -1,3 +1,10 @@
+'''
+This piece of code executes experiements between the EBFDD, RBFDD, Isolation Forest, GMM, classic Auto-Encoder, and One-class SVM
+On a variety of benchmark datasets. By setting the name of the dataset, the desired algorithms, the scenario in which we choose the normal and anomalous labels
+, and finally by choosing the desired hyper-parameters, this code will train the selected algorithms on the desired datasets.
+It will save the results separately for each algorithm. These files can be used by the EBFDD Rank Visualiser.py code so we can compare
+the BEST performance of each algorithm on the selected dataset, accompanied by the corresponding winner hyper-parameters.
+'''
 import random as r
 import numpy as np
 import time as time
