@@ -5,26 +5,40 @@ from pylab import *
 import matplotlib.pyplot as plt
 import math
 from sklearn.metrics import precision_recall_fscore_support
-
+# Import the datasetscripts from the folder DataPreparationScripts
+# These scripts will normalize the data between 0 and 1 and separate
+# the data between Normal and Anomalous categories
 from DataPreparationScripts import letter_Script, wave_Script, Fashion_MNIST_Script, \
 gamma_Script, Page_Script, Fault_Script, PARTICLE_Script, ImageSegmentation_Script,\
 Spambase_Script, landsat_Script, Skin_Script
 
+# Used to shuffle the data at the begining of every epoch for the EBFDD, and RBFDD algorithms
 from sklearn.utils import shuffle
+# Used to pickle the output results in a file so we could use it by the EBFDD Rank Visualiser.py
+# To see the performance of each algorithm
 import pickle
+# Import the Support Vector Machine for the One-Class SVM algorithm
 from sklearn import svm
+# Import the classes required to build the Auto Encoder
 from keras.layers import Input, Dense
-from sklearn.ensemble import IsolationForest
 from keras.models import Model
+from keras import optimizers
+# Import the Isolation Forest
+from sklearn.ensemble import IsolationForest
+# The kmeans is used for the pre-training phase of the EBFDD/RBFDD algorithms
 from sklearn.cluster import KMeans
+# This is for the Gaussian Mixture Model
 from sklearn import mixture
+# This is used to apply the PCA algorithm on the data should we want compression
 from sklearn import decomposition
 from itertools import permutations, combinations
 from sklearn.metrics import confusion_matrix
+# Used for converting covariance matrices for both the EBFDD and RBFDD algorithms
 from numpy.linalg import inv
+# This is used to visualise the gaussians for the EBFDD, RBFDD, and GMM (is used if the dimensionality is reduced to 2)
 from scipy.stats import multivariate_normal
 from mpl_toolkits.mplot3d import Axes3D
-from keras import optimizers
+
 import sys
 np.random.seed(1)
 r.seed(1)
