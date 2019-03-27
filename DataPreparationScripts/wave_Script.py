@@ -3,7 +3,7 @@ import pandas as pd
 
 def prepare_wave(normal, anomalous):
     # Depending on what normal is, build the anomalous label's list
-    dataset = pd.read_csv('D:\PhD\AD-Benchmark Datasets\Multiclass Classification\\wave.original.csv')
+    dataset = pd.read_csv('wave.original.csv')
     X = dataset[dataset.columns[1:]]
     X = X.values
     Y = np.array(dataset["Y"])
