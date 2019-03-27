@@ -38,12 +38,19 @@ from numpy.linalg import inv
 # This is used to visualise the gaussians for the EBFDD, RBFDD, and GMM (is used if the dimensionality is reduced to 2)
 from scipy.stats import multivariate_normal
 from mpl_toolkits.mplot3d import Axes3D
-
 import sys
+# Ensure reproducibility
 np.random.seed(1)
 r.seed(1)
-# This will normalize the data between 0 and 1
+
 def normalize(X):
+    ''' 
+      If PCA reduced the dimensionality, this will normalize the compressed data between 0 and 1
+      Before training.Normalises the data between 0 and 1:
+        - Input: Data to be normalised numpy (N,D)
+        - Output: Normalised data numpy (N,D)
+        - Called by PCA_compress function
+    '''
     maximum = np.max(X, axis=0)
     minimum = np.min(X, axis=0)
     denum = maximum - minimum
@@ -52,12 +59,22 @@ def normalize(X):
     return X
 
 def PCA_compress(dimensionality, normal_data, anomalous_data):
+    ''' 
+      If PCA reduced the dimensionality, this will normalize the compressed data between 0 and 1
+      Before training.Normalises the data between 0 and 1:
+        - Input: 
+            - Normal and Anomalous Data to be compressed numpy (N,D)
+            - Desired dimensionality for compression
+        - Output: 
+            - Compressed data numpy (N,D)
+        - Called by PCA_compress function
+    '''
     n_components = dimensionality
     pca_train = decomposition.PCA(n_components=n_components, whiten=True)
     pca_train.fit(normal_data)
     normal_data = pca_train.transform(normal_data)
     anomalous_data = pca_train.transform(anomalous_data)
-    # Normalize the data
+    # Normalize the data by calling Normalize() function
     normal_data = normalize(normal_data)
     anomalous_data = normalize(anomalous_data)
     return normal_data, anomalous_data
