@@ -81,12 +81,12 @@ def PCA_compress(dimensionality, normal_data, anomalous_data):
 
 def prepare_training_data(normal_data, sample_size=0.80):
     ''' 
-      Randomly samples the training data (normal data) by the sample_size()
+      Randomly samples the normal data by the sample_size
         - Input: 
             - Normal and Anomalous Data to be sampled numpy (N,D)
             - the sample_size which dictates the fraction for sampling
         - Output: 
-            - Sampled portion of the entire training data numpy (N,D), with the indices. These indices are used by 
+            - the training data: Sampled portion of the entire normal data numpy (N,D), with the indices. These indices will be used by 
               prepare_testing_data function, so it could make sure thet it will not use these for preparing the test data
         - Called by the most inner loop of each algorithm, everytime we need to sample.
     '''
@@ -99,14 +99,13 @@ def prepare_training_data(normal_data, sample_size=0.80):
     return boot_strap_train_data, boot_strap_train_index
 
 def prepare_testing_data(normal_data, normal_data_label, boot_strap_train_index):
-     ''' 
-      Randomly samples the training data (normal data) by the sample_size()
+    ''' 
+      Uses the entire anomalous data and concatenates it with the portion of the normal data NOT used for training by prepare_training_data
         - Input: 
-            - Normal and Anomalous Data to be sampled numpy (N,D)
-            - the sample_size which dictates the fraction for sampling
+            - Normal data numpy (N,D)
+            - the boot_strap_train_indexused to find the portion of the normal data that is not used for the training
         - Output: 
-            - Sampled portion of the entire training data numpy (N,D), with the indices. These indices are used by 
-              prepare_testing_data function, so it could make sure thet it will not use these for preparing the test data
+            - the test data and the test labels
         - Called by the most inner loop of each algorithm, everytime we need to sample.
     '''
     test_data_normal_portion = np.delete(normal_data, boot_strap_train_index, axis=0)
