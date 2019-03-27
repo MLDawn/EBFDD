@@ -66,31 +66,49 @@ def PCA_compress(dimensionality, normal_data, anomalous_data):
             - Normal and Anomalous Data to be compressed numpy (N,D)
             - Desired dimensionality for compression
         - Output: 
-            - Compressed data numpy (N,D)
+            - Compressed data numpy (N,D), which is normalised between 0 and 1
         - Called by PCA_compress function
     '''
-    n_components = dimensionality
-    pca_train = decomposition.PCA(n_components=n_components, whiten=True)
+    pca_train = decomposition.PCA(n_components=dimensionality, whiten=True)
     pca_train.fit(normal_data)
     normal_data = pca_train.transform(normal_data)
     anomalous_data = pca_train.transform(anomalous_data)
-    # Normalize the data by calling Normalize() function
+    # Normalize the normal and anomalous data by calling the Normalize() function
     normal_data = normalize(normal_data)
     anomalous_data = normalize(anomalous_data)
     return normal_data, anomalous_data
 
 
-def prepare_training_data(normal_data, sample_size):
+def prepare_training_data(normal_data, sample_size=0.80):
+    ''' 
+      Randomly samples the training data (normal data) by the sample_size()
+        - Input: 
+            - Normal and Anomalous Data to be sampled numpy (N,D)
+            - the sample_size which dictates the fraction for sampling
+        - Output: 
+            - Sampled portion of the entire training data numpy (N,D), with the indices. These indices are used by 
+              prepare_testing_data function, so it could make sure thet it will not use these for preparing the test data
+        - Called by the most inner loop of each algorithm, everytime we need to sample.
+    '''
     # bootstrap sample from the train_data
     boot_strap_size = int(normal_data.shape[0] * sample_size)
     # Generate a uniform random sample from np.arange(boot_strap_size) of size boot_strap_size:
     # generate the index of the sampled values NO REPLACEMENT
     boot_strap_train_index = np.random.choice(normal_data.shape[0], boot_strap_size, replace=False)
-    # extract the associated boot_strap_train data for the RBFDD training (No need for labels)
     boot_strap_train_data = normal_data[boot_strap_train_index]
     return boot_strap_train_data, boot_strap_train_index
 
 def prepare_testing_data(normal_data, normal_data_label, boot_strap_train_index):
+     ''' 
+      Randomly samples the training data (normal data) by the sample_size()
+        - Input: 
+            - Normal and Anomalous Data to be sampled numpy (N,D)
+            - the sample_size which dictates the fraction for sampling
+        - Output: 
+            - Sampled portion of the entire training data numpy (N,D), with the indices. These indices are used by 
+              prepare_testing_data function, so it could make sure thet it will not use these for preparing the test data
+        - Called by the most inner loop of each algorithm, everytime we need to sample.
+    '''
     test_data_normal_portion = np.delete(normal_data, boot_strap_train_index, axis=0)
     test_label_normal_portion = np.delete(normal_data_label, boot_strap_train_index, axis=0)
     # Now concatenate these newly extracted normal samples to the existing
