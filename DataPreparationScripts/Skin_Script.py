@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 def prepare_skin(normal, anomalous):
-    dataset = pd.read_csv('D:\PhD\AD-Benchmark Datasets\Binary Classification\skin.original.csv')
+    dataset = pd.read_csv('skin.original.csv')
     X = dataset[dataset.columns[1:]]
     X = X.values
     Y = np.array(dataset["Y"])
