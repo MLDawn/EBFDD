@@ -6,6 +6,8 @@ The Image Segmentation Dataset: http://archive.ics.uci.edu/ml/datasets/image+seg
 The Page Dataset: https://archive.ics.uci.edu/ml/datasets/Page+Blocks+Classification
 The LandSat Dataset: https://archive.ics.uci.edu/ml/datasets/Statlog+(Landsat+Satellite)
 The Wave Dataset: http://archive.ics.uci.edu/ml/datasets/waveform+database+generator+(version+1)
+# What is the DataPreparationScripts folder all about?
+It contains some scripts that are used by the EBFDD.py code, so it can normalize the datasets between 0 and 1 and partition them into normal and anomalous. They all return the normal data, anomalous data, normla data label and anomalous data label back to the EBFDD.py, so that EBFDD.py could start the training process for all the algorithms.
 # What does the EBFDD.py all about?
 It contains several classes for different state of the algorithms (OCSVM, AEN, iForest, GMM, and RBFDD which is a special case of the EBFDD algorithm) that are used for the task of anomaly detection, including our method that is called the Elliptical Basis Function Data Descriptor (EBFDD) network.
 Each class in instantiated by setting up its hyper-parameters, and then in has the train() and test() methods to allow it do apply training and do inference, respectively.
