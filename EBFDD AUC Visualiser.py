@@ -5,6 +5,14 @@ import pickle
 import os
 from sklearn.metrics import roc_curve, auc
 import math
+
+###################################################### IMPORTANT #################################################################
+# The put the outputs of the EBFDD code in a directory all together. Insert the path to that directory in the variable path below
+# For example, if you had 3 algorithms, for a given dataset, and scenario, you will have 3 separate files. Each one starts with the
+# Name of one of the algorithms.
+# This code will go over all 3 files, and gives you a visual representation of the best set of hyper-parameters, per algorithm, per dataset
+path = ""
+
 def setBoxColors(bp):
     setp(bp['boxes'][0], color='blue')
     setp(bp['caps'][0], color='blue')
@@ -48,8 +56,6 @@ def find_winner_row(final_result, algorithm):
     return combination, winner_combination, maximum_auc, error
 
 algorithms = ['EBFDD','RBFDD', 'OCSVM', 'AEN', 'GMM', 'iForest']
-
-path = "D:\PhD\Benchmark Experiments\\tempt"
 
 all_files = dict()
 for root, dirs, files, in os.walk(path):
