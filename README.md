@@ -1,4 +1,4 @@
-# Elliptical-Basis-Function-Data-Descriptor-EBFDD-
+# The Elliptical-Basis-Function-Data-Descriptor network: A One-Class Classification Approach to Anomaly Detector
 This repository contains all the code for the EBFDD along its competitors. There are also the supplementary codes for reading the data from the datasets!
 # Where are the datasets used in the code? Where can I find them?
 The Fault Dataset: http://archive.ics.uci.edu/ml/datasets/steel+plates+faults
