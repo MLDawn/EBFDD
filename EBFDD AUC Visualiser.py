@@ -14,6 +14,9 @@ import math
 path = ""
 
 def setBoxColors(bp):
+    '''
+    This function is responsible for the appearance of the boxplots
+    '''
     setp(bp['boxes'][0], color='blue')
     setp(bp['caps'][0], color='blue')
     setp(bp['caps'][1], color='blue')
@@ -41,6 +44,8 @@ def find_winner_row(final_result, algorithm):
                 aucs.append(0)
                 continue
             if algorithm == 'AEN':
+                # As the logic of the AEN is different from the others, we need to multiply the outputs by -1
+                # This way the ground truth and the output are monotonically correlated (Necessary for computing AUC scores)
                 fpr, tpr, thresholds = roc_curve(ground_truth, -output)
             else:
                 fpr, tpr, thresholds = roc_curve(ground_truth, output)
@@ -69,7 +74,7 @@ for root, dirs, files, in os.walk(path):
                     all_files[alg] = object_file
 
 winners = dict()
-winner_combination = dict()
+winner_combination = dict() # This will hold the name of the algorithm and the highest Average AUC score it has had through the experiments
 for alg in all_files.keys():
     [winner_combination[alg], winners[alg], max_auc,Error] = find_winner_row(all_files[alg], alg)
     print(str(alg)+': ' + str(max_auc)+' FP rate: '+str(Error))
@@ -94,6 +99,8 @@ AUC = []
 AUC_means = []
 AUC_labels = []
 AUC_std = []
+# Get the mean and standard deviation for the AUC scores of each algorithm (Only for the winner hyper-parameters)
+#--> Used to give us information regarding the stability of the algorithms
 for i in auc_scores.keys():
     AUC_labels.append(i)
     AUC.append(auc_scores[i])
