@@ -127,7 +127,7 @@ def prepare_testing_data(normal_data, normal_data_label, boot_strap_train_index)
 
 # The class for the Elliptical Basis Function Data Descriptor network
 class EBFDD:
-    def __init__(self, dataset_name, mini_batch_size,  H, beta, theta, bp_eta, bp_epoch, normal, anomalous, statistics=True, boundary=True):
+    def __init__(self, dataset_name, mini_batch_size,  H, beta, theta, bp_eta, bp_epoch, normal, anomalous, statistics=False, boundary=False):
         '''
         This constructor sets the following class attributes:
             - The name of the dataset correntlu under experiment
@@ -204,52 +204,56 @@ class EBFDD:
         return y, P, Z, a
     
     def ebfdd_backward(self, y, P, Z, a, cov, W, NUM):
+        '''
+        This function performs the backprop after the current mini-batch has gone through the forwardpass and produced the output vector, y
+        Inputs:
+            - The output vector of the network, y
+            - The likelihood matrix P, that holdes the likelihood of every data vector in the mini-batch, across all the hidden nodes
+            - The preactivation vector of the output neuron, Z
+            - The matrix of the differences between the input vectors and the means of the centroids (computed by the forward pass)
+            - The covariance matrices, cov, of all the hidden nodes
+            - The weight vector W, connecting the hidden layer to the output neuron
+            - The number of data vectors in the mini-batch, NUM
+        Outputs:
+            - The gradients of the error (our proposed error function found in the paper) wrt. the weights, 
+            the covariance matrices and the Gaussian means denotes as: dEdW, dEdCov, and dEdM
+        '''
         invcov = inv(cov)
         dEdZ = (y - 1) * (1.1439 * (1 - np.square(np.tanh(float(2 / 3) * Z))))
-        # --------------------------Let's compute the Weight derivatives-------------------------
-        # We will have to have a ROW-WIZE multiplication of dEdZ upon P(Hxn) (i.e., P*dEdZ), so that every element of dEdZ
-        # is multiplied by its relevant likelihood (# of elements in each row of P), across ALL kernels (# of Rows in P)
-        # Then a sum across all the rows will result in a vector of size (H,), which is exactly the dEdW!!!
         dEdW = np.sum(P * dEdZ, axis=1) + NUM * self.theta * W
-        # We do NOT update just now! This is Batch-Learning!
-        # --------------------------Let's compute the Centroid derivatives-------------------------
-        # First we will take the derivatives right uo to the Kernels' boubdaries (i.e., dEdP)
-        # We already have dEdZ, which is the common term in all our update rules. So, let's now
-        # Compute dZdP, which is a matrix the same size as P (H,n), which is nothing but a matrix
-        # of size (H,n), whose columns are exact replications of the weight vector W(H,).
         dZdP = np.repeat([W], NUM, axis=0).T
-        # Now, having both dEdZ(n,) and dZdP(H,n) we can compute dEdP. We need every element of dEdZ
-        # To be multiplied by its corresponding column in the dZdP(H,n) matrix. np.multiply() does that!
+        
         dEdP = np.multiply(dEdZ, dZdP) * P
-        # Now we can compute the dEdCov, which would need the dEdP and dPdCov parts. So, let's combine them
-        # Using the chain rule!
-        # Important: We have to use (X-m).T on the right hand of invCov, and that is why down here we have variable c
-        # dd will have the dimensions (H,d,n)
-        # #####Optimised
+        
         dPdM = np.matmul(invcov, np.transpose(a, [0, 2, 1]))
-        #######################
+
         dPdM = np.transpose(dPdM, [0, 2, 1])
-        # Now finally using dEdP, we will compute the long-awaited dEdM
-        # Every row of dEdP*P(H,n) is corresponding to a matrix in dd. So we will need first row multiplied by the first
-        # matrix inside dd, and so on... hence the command [:, np.newaxis]. and finally for some unknown reason
-        # the dimensions become (H,1,d), and that is why we have the np.reshape down here to compute dEdM(H,d)
+        
         dEdM = np.reshape(np.matmul(dEdP[:, None], dPdM), (self.H, input_dim))
-        # Now we need to find the derivatives with respect to the covariance matrix. Then again dEdP has been computed
-        # and it will be used for computing the dEdCov.
+        
         A = a.reshape(a.shape[0], a.shape[1], 1, a.shape[2])
-        # #### optimised
         A = A * np.transpose(A, [0, 1, 3, 2])
-        dEdP = np.reshape(dEdP, (dEdP.shape[0], NUM, 1))  # H,n,1
-        A = np.sum(A * dEdP[:, :, np.newaxis], axis=1)  # H,d,d
+        dEdP = np.reshape(dEdP, (dEdP.shape[0], NUM, 1))
+        A = np.sum(A * dEdP[:, :, np.newaxis], axis=1)
         dEdCov = 0.50 * np.matmul(np.matmul(invcov, A), invcov)
         dEdCov = dEdCov + self.beta * NUM * cov * np.identity(cov.shape[-2])
         return dEdW, dEdCov, dEdM
     def kmeans(self, train_data):
-        ########################################## If we want we can use KMeans##############################
+        '''
+        The kmeans is used as the pre-training phase before the EBFDD's training gets started, to initialize the
+        Gaussians with a good set of parameters.
+        Inputs:
+            - The whole training data
+        Outputs:    
+            - The initial centers and covariance matrices of the Gaussians
+        '''
         kmeans = KMeans(n_clusters=self.H, random_state=0).fit(train_data)
         print("K-means is DONE!!!")
+        # Here we grab the means, computed by the k-means
         m = kmeans.cluster_centers_
         labels = np.array(kmeans.labels_)
+        # For every Gaussian center, we compute its distance fro its farthest member, divide it by 3, and that becomes
+        # The initial variance for that Gaussian
         sd = []
         for h in range(self.H):
             index = np.argwhere(labels == h)
@@ -261,11 +265,15 @@ class EBFDD:
             else:
                 sd.append(sys.float_info.epsilon)
         sd = np.array(sd)
+        # In order to build the covariance matrices, this value will be repeated 
+        # across the diagonal of the covariance matrix of the Gaussian, while zeroing out all the other values --> A radial kernel
         cov = np.random.rand(self.H, input_dim, input_dim)
         for h in range(self.H):
             cov[h] = sd[h] * np.identity(cov[h].shape[-2])
         return cov, m
     def plot_gaussians(self, train_data, anomalous_data, m, cov):
+        # A simple plotting function of the Gaussians. Gets activated if the dimensionality of 
+        # the data has been reduced to 2 using our defined PCA_compress function.
         xx, yy = np.mgrid[-5:5:.1, -5:5:.1]
         pos = np.dstack((xx, yy))
         figure()
@@ -298,6 +306,9 @@ class EBFDD:
                 plt.xlabel("First PC", fontsize=15)
                 plt.ylabel("Second PC", fontsize=15)
     def plot_statistics(self, Avg_Error, Avg_output, Avg_l2_weights, Avg_sum_variances):
+        # This plots certain statistics regarding the training experience, if statistics = True in the constructor
+        # Statistics such as: The trend of the error, the l2 norm of the weights, the l2 norm of the variances of the 
+        # Covariance matrices, and the trend of the output of the network during training
         figure()
         plt.subplot(2, 2, 1)
         plt.plot(Avg_Error, 'r')
@@ -321,7 +332,7 @@ class EBFDD:
         plt.xlabel("Epochs")
         plt.show()
     def plot_decision_boundary(self, cov, m, W):
-        # Plot the decision boundary
+        # Plot the decision boundary if boundary == True, in the constructor
         plt.figure()
         x = np.arange(-5, 5, 0.1)
         y = np.arange(-5, 5, 0.1)
@@ -336,15 +347,8 @@ class EBFDD:
                 a = (X - m[:, np.newaxis])
                 # # Optimised
                 d = np.matmul(np.matmul(a, invcov), np.transpose(a, [0, 2, 1]))
-                #################
-                # Now the array P(Hxn) has ALL the likelihoods of ALL the training data of ALL the Kernels
                 P = np.exp(-0.50 * np.diagonal(d, axis1=1, axis2=2))
-                # Here we have a column-wise multiplication between P(Hxn) and Weights (CAN be BETTER CODED)
-                # Z(n) is what is what the output neuron has received
                 Z = np.sum((P.T * W).T, axis=0)
-                # Here we apply the Lecun's recommended tanh() function to get the outputs
-                # The output vector has n number of elements
-                # Check whether EBFDD or EBFDD-tanh is requested
                 output.append(1.7159 * np.tanh(float(2 / 3) * Z))
         output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
         plt.xlim(-5, 5)
@@ -365,13 +369,6 @@ class EBFDD:
         input_dim = train_data.shape[1]
         # Pre-training Stage
         [cov, m] = self.kmeans(train_data)
-        # #######################################
-        # m = np.random.uniform(low=-2, high=2, size=(self.H, input_dim))
-        # cov = []
-        # for i in range(self.H):
-        #     cov.append(np.random.uniform(low=1, high=4)*np.identity(input_dim))
-        # cov = np.array(cov)
-        # #######################################
         # Initiating the Weights
         W = np.random.uniform(low=self.low, high=self.high, size=(self.H,))
         Avg_Error = []
