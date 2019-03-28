@@ -930,36 +930,40 @@ class iForest:
         return raw_output, ground_truth, prediction
 
 # we choose a dataset on which the following will be applied to prepare the data for our algorithm
-# options are: MNIST, FASHION-MNIST, WISCONSIN, IONOSPHERE, KDD
+# options are: GAMMA, SKIN, SPAM-BASE, FAULT, IMAGESEGMENTATION, LANDSAT, LETTER, PAGE, and WAVE
 
 # The structure goes: "DatasetName": [[[Normal], [Anomalous]], ... Until we finish all the scenarios]
-#{LANDSAT:[[[1], [-1]],[[2], [-1]],[[3], [-1]],[[4], [-1]],[[5], [-1]],[[7], [-1]]]}
-#{"PAGE": [[[1], [-1]],[[2], [-1]],[[3], [-1]],[[4], [-1]],[[5], [-1]]]}
-#{'WAVE':[[[0],[-1]],[[1],[-1]],[[2],[-1]]]}
-# #{"FAULT": [[[7], [-1]]],[[2], [-1]],[[3], [-1]],[[4], [-1]],[[5], [-1]],[[6], [-1]],[[7], [-1]]]}#"GAMMA":[[['g'], ['h']]]"SPAM-BASE":[[[0], [1]]] "PARTICLE":[[[1], [0]]]"SKIN":[[[2], [1]]],#"GAMMA":[[['g'], ['h']]]}, "MNIST":[[[1], [0]]],"WISCONSIN": [[[2], [4]]]}#"KDD": [[['normal.'], ['satan.']],[['normal.'], ['smurf.']]]}
-dataset_collaction = {"LANDSAT":[[[1], [-1]]]}#, [[1],[-1]], [[2],[-1]]]}#,[['B'], [-1]],[['C'], [-1]],[['D'], [-1]],[['E'], [-1]],[['F'], [-1]],[['G'], [-1]],[['H'], [-1]],[['I'], [-1]],[['J'], [-1]],[['K'], [-1]],[['L'], [-1]],[['M'], [-1]],[['N'], [-1]],[['O'], [-1]],[['P'], [-1]],[['Q'], [-1]],[['R'], [-1]],[['S'], [-1]],[['T'], [-1]],[['U'], [-1]],[['V'], [-1]],[['W'], [-1]],[['X'], [-1]],[['Y'], [-1]],[['Z'], [-1]]]}#,[[-1], ["GRASS"]],[[-1],["SKY"]],[[-1],["FOLIAGE"]],[[-1],["CEMENT"]],[[-1],["WINDOW"]],[[-1],["PATH"]],[[-1],["GRASS"]]]}#{"FAULT": [[[-1], [1]],[[-1], [2]],[[-1], [3]],[[-1], [4]],[[-1], [5]],[[-1], [6]],[[-1], [7]]]}#"SKIN":[[[2], [1]]] "MNIST":[[[1], [0]]]}#"SPAM-BASE":[[[0], [1]]]}#"GAMMA":[[['g'], ['h']]]}#,[["SKY"], [-1]],[["FOLIAGE"], [-1]],[["CEMENT"], [-1]],[["WINDOW"], [-1]],[["PATH"], [-1]],[["GRASS"], [-1]]]}#,[[-1], [2]],[[-1], [3]],[[-1], [4]],[[-1], [5]],[[-1], [6]],[[-1], [7]]]}#,[[2], [-1]],[[3], [-1]],[[4], [-1]],[[5], [-1]],[[6], [-1]],[[7], [-1]]]}#{"IMAGESEGMENTATION": [[["BRICKFACE"], [-1]],[["SKY"], [-1]],[["FOLIAGE"], [-1]],[["CEMENT"], [-1]],[["WINDOW"], [-1]],[["PATH"], [-1]],[["GRASS"], [-1]]]}
-algorithm_collection = ['EBFDD']#['EBFDD','RBFDD','AEN', 'OCSVM','GMM','iForest']
-# Determine the number of hidden nodes for both the RBFDD and AEN
-# for MNIST
-# EBFDD: 10,20,0.001, 0.9, 0.001
+# We can have more than 1 labels for either Normal and Anomalous classes
+dataset_collaction = {"LANDSAT":[[[1], [-1]]]}
+# We can choose the algorithm(s). Options are: EBFDD, RBFDD, AEN, OCSVM, GMM, and iForest. We can put multiple algorithms!
+algorithm_collection = ['EBFDD']
 
+# Number of hidden nodes for the EBFDD, RBFDD, AEN, and the number of Gaussians for GMM
 H = [5]
+# Number of epochs
 MAX_EPOCH =[20]
-
-BP_ETA = [0.01]#, 0.001, 0.0001]
-BETA = [0.1]#, 0.5, 0.1, 0.05, 0.01, 0.001, 0.0001]
-THETA = [0.01]#, 0.5, 0.1, 0.05, 0.01, 0.001, 0.0001]
-Nu = [0.001]#[0.0001, 0.001, 0.01, 0.1, 0.5, 0.9]
-Gamma = [0.9]#[0.0001, 0.001, 0.01, 0.1, 0.5, 0.9]
+# Learning rate for EBFDD, RBFDD
+BP_ETA = [0.01]
+# The covariance regularizer and weight regularizer coefficients in EBFDD, and RBFDD
+BETA = [0.1]
+THETA = [0.01]
+# Hyper parameters for the OCSVM
+Nu = [0.001]
+Gamma = [0.9]
 N_ESTIMATORS =[1000]# [100, 200, 500, 800, 1000]
-mini_batch = 32
-SAMPLING_TIMES = 10
 
-# Do we want  to reduce the dimensionality of the data
+# Size of the mini-batches used by EBFDD, RBFDD, and AEN
+mini_batch = 32
+# How many times will we sample and train an algorithm. This is determined by the SAMPLING_TIMES
+SAMPLING_TIMES = 10
+# Training sample size. This determines the split. Remaining portion concatenates with all the anomalous data and construct the test set
+sample_size = 0.80
+
+
+# Do we want  to reduce the dimensionality of the data. Then we need to determine the desired dimensions
 compress = False
 compress_dim = 2
-# Training sample size
-sample_size = 0.80
+
 
 for algorithm in algorithm_collection:
     # Go through all datasets, and all their scenarios
@@ -968,7 +972,7 @@ for algorithm in algorithm_collection:
             # Deternine current scenario by assigning current normal, and anomalous so the datasets can be built
             normal = scenario[0]
             anomalous = scenario[1]
-            # Now prepare the corresponding dataset, accordingly
+            # Now prepare the normal data and anomalous data from the current dataset
             if dataset == 'GAMMA':
                 [normal_data, normal_data_label, anomalous_data,anomalous_data_label] = gamma_Script.prepare_gamma(normal, anomalous)
                 input_dim = normal_data.shape[1]
@@ -977,14 +981,12 @@ for algorithm in algorithm_collection:
             elif dataset == 'SKIN':
                 # get all the data
                 [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = Skin_Script.prepare_skin(normal, anomalous)
-                # for the sake of AEN, record the input dimension, which helps with choosing the encode_dim hyper parameter for the AEN
                 input_dim = normal_data.shape[1]
                 print("===============================================================")
                 print("SKIN loaded..."+'\n'+"(N, A)=%s" % str(scenario))
             elif dataset == 'SPAM-BASE':
                 # get all the data
                 [normal_data, normal_data_label, anomalous_data, anomalous_data_label] = Spambase_Script.prepare_Spambase(normal, anomalous)
-                # for the sake of AEN, record the input dimension, which helps with choosing the encode_dim hyper parameter for the AEN
                 input_dim = normal_data.shape[1]
                 print("===============================================================")
                 print("SKIN loaded..."+'\n'+"(N, A)=%s" % str(scenario))
@@ -1030,15 +1032,12 @@ for algorithm in algorithm_collection:
                 normal_data, anomalous_data = PCA_compress(compress_dim, normal_data, anomalous_data)
                 input_dim = compress_dim
 
-            # define a dictionary for saving everything
+            # define a dictionary for saving everything. Trained model, learned parameters, statistics of the output of the trained model
+            # on the training set, the information regarding the testing performance such as the raw output and the ground truth
             final_result = dict()
-            # Set the desired set of hyper-parameters for the given algorithms
+            # We start to go through the selection of algorithms
             if algorithm == "EBFDD":
-                # Deviation used for detecting the threshold. Deviation from the average_y
-                # define a dictionary for saving everything
                 final_result = dict()
-                # in the following section we will go through different combinations(i.e., n) of hyper-parameters
-                # in order to know where we are in the middle of the execution
                 round_counter = 1
                 total_number_rounds = len(H)*len(BP_ETA)*len(MAX_EPOCH)*len(BETA)*len(THETA)
                 for h in H:
@@ -1109,14 +1108,6 @@ for algorithm in algorithm_collection:
                                         # Call the train function of the rbfdd using the boot_strap_train_data
                                         # Get the learned parameters
                                         [m, sd, W, trained_y] = rbfdd.train(boot_strap_train_data)
-                                        # Find the remaining indices in normal_data and add them to the anomalous data
-                                        # test_data_normal_portion = []
-                                        # test_label_normal_portion = []
-                                        # for index in range(normal_data.shape[0]):
-                                        #     if index not in boot_strap_train_index:
-                                        #         test_data_normal_portion.append(normal_data[index])
-                                        #         test_label_normal_portion.append(normal_data_label[index])
-                                        # test_data_normal_portion = np.array(test_data_normal_portion)
                                         test_data_normal_portion = np.delete(normal_data, boot_strap_train_index,
                                                                              axis=0)
                                         test_label_normal_portion = np.delete(normal_data_label, boot_strap_train_index,
@@ -1138,8 +1129,6 @@ for algorithm in algorithm_collection:
                                     # Before changing the hyper-parameters, store step_result, into the final_result dictionary
                                     final_result[str(current_hyper_parameters)] = step_result
 
-        # Now we have all we need inside result. We now find the best-hyperparameters by finding the one combination
-        # that has the highest average macro-fmeasure
             elif algorithm == "OCSVM":
                 # define a dictionary for saving everything
                 final_result = dict()
@@ -1173,15 +1162,6 @@ for algorithm in algorithm_collection:
                             # Get the learned parameters
                             # [clf, average_train_dist, std_train_dist, train_dist] = ocsvm.train(boot_strap_train_data)
                             [clf, train_dist] = ocsvm.train(boot_strap_train_data)
-                            # Find the remaining indices in normal_data and add them to the anomalous data
-                            # test_data_normal_portion = []
-                            # test_label_normal_portion = []
-                            # for index in range(normal_data.shape[0]):
-                            #     if index not in boot_strap_train_index:
-                            #         test_data_normal_portion.append(normal_data[index])
-                            #         test_label_normal_portion.append(normal_data_label[index])
-                            # test_data_normal_portion = np.array(test_data_normal_portion)
-                            # test_label_normal_portion = np.array(test_label_normal_portion)
                             test_data_normal_portion = np.delete(normal_data, boot_strap_train_index, axis=0)
                             test_label_normal_portion = np.delete(normal_data_label, boot_strap_train_index, axis=0)
                             # Now concatenate these newly extracted normal samples to the existing
@@ -1242,15 +1222,6 @@ for algorithm in algorithm_collection:
                                             # Get the learned parameters
                                             # [clf, encoder, decoder, average_E, sd_E, trained_Normal_E] = aen.train(boot_strap_train_data)
                                             [encoder, decoder, train_original, train_reconstructed, trained_Normal_E] = aen.train(boot_strap_train_data)
-                                            # Find the remaining indices in normal_data and add them to the anomalous data
-                                            # test_data_normal_portion = []
-                                            # test_label_normal_portion = []
-                                            # for index in range(normal_data.shape[0]):
-                                            #     if index not in boot_strap_train_index:
-                                            #         test_data_normal_portion.append(normal_data[index])
-                                            #         test_label_normal_portion.append(normal_data_label[index])
-                                            # test_data_normal_portion = np.array(test_data_normal_portion)
-                                            # test_label_normal_portion = np.array(test_label_normal_portion)
                                             test_data_normal_portion = np.delete(normal_data, boot_strap_train_index,
                                                                                  axis=0)
                                             test_label_normal_portion = np.delete(normal_data_label,
@@ -1309,15 +1280,6 @@ for algorithm in algorithm_collection:
                         # Call the train function of the rbfdd using the boot_strap_train_data
                         # Get the learned parameters
                         [Model, trained_prob] = gmm.train(boot_strap_train_data)
-                        # Find the remaining indices in normal_data and add them to the anomalous data
-                        # test_data_normal_portion = []
-                        # test_label_normal_portion = []
-                        # for index in range(normal_data.shape[0]):
-                        #     if index not in boot_strap_train_index:
-                        #         test_data_normal_portion.append(normal_data[index])
-                        #         test_label_normal_portion.append(normal_data_label[index])
-                        # test_data_normal_portion = np.array(test_data_normal_portion)
-                        # test_label_normal_portion = np.array(test_label_normal_portion)
                         test_data_normal_portion = np.delete(normal_data, boot_strap_train_index, axis=0)
                         test_label_normal_portion = np.delete(normal_data_label, boot_strap_train_index, axis=0)
                         # Now concatenate these newly extracted normal samples to the existing
@@ -1375,15 +1337,6 @@ for algorithm in algorithm_collection:
                         # Call the train function of the rbfdd using the boot_strap_train_data
                         # Get the learned parameters
                         [Model, train_scores] = iforest.train(boot_strap_train_data)
-                        # Find the remaining indices in normal_data and add them to the anomalous data
-                        # test_data_normal_portion = []
-                        # test_label_normal_portion = []
-                        # for index in range(normal_data.shape[0]):
-                        #     if index not in boot_strap_train_index:
-                        #         test_data_normal_portion.append(normal_data[index])
-                        #         test_label_normal_portion.append(normal_data_label[index])
-                        # test_data_normal_portion = np.array(test_data_normal_portion)
-                        # test_label_normal_portion = np.array(test_label_normal_portion)
                         test_data_normal_portion = np.delete(normal_data, boot_strap_train_index, axis=0)
                         test_label_normal_portion = np.delete(normal_data_label, boot_strap_train_index, axis=0)
                         # Now concatenate these newly extracted normal samples to the existing
