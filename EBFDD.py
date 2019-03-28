@@ -16,7 +16,7 @@ from sklearn.metrics import precision_recall_fscore_support
 # These scripts will normalize the data between 0 and 1 and separate
 # the data between Normal and Anomalous categories
 from DataPreparationScripts import letter_Script, wave_Script, Fashion_MNIST_Script, \
-gamma_Script, Page_Script, Fault_Script, PARTICLE_Script, ImageSegmentation_Script,\
+gamma_Script, Page_Script, Fault_Script, ImageSegmentation_Script,\
 Spambase_Script, landsat_Script, Skin_Script
 
 # Used to shuffle the data at the begining of every epoch for the EBFDD, and RBFDD algorithms
@@ -444,8 +444,13 @@ class EBFDD:
             batch_counter = batch_counter + NUM
         trained_y = np.concatenate(trained_y).ravel()
         return m, cov, W, trained_y
+    
     def test(self, test_data, test_labels, m, cov, W):
         print("Test starts")
+        '''
+        This is the test function. Just applies the forwardpass on the test_data and gathers raw outputs, 
+        while gathering ground truth Labels. Finally it returns both of them! Eventually we will use these to compute AUC scores
+        '''
         input_num = test_data.shape[0]
         if (input_num % self.mini_batch) == 0:
             end = 0
@@ -462,19 +467,19 @@ class EBFDD:
         raw_output = np.concatenate(raw_output).ravel()
         ground_truth = []
         for item in test_labels:
-            # All vs 1
+            # All vs 1 scenario
             if len(normal) == 1 and normal[0] == -1:
                 if item in self.anomalous:
                     ground_truth.append(0)
                 else:
                     ground_truth.append(1)
-            # 1 vs All
+            # 1 vs All scenario
             elif len(anomalous) == 1 and anomalous[0] == -1:
                 if item in self.normal:
                     ground_truth.append(1)
                 else:
                     ground_truth.append(0)
-            # some vs some
+            # some vs some scenario
             else:
                 if item in self.normal:
                     ground_truth.append(1)
@@ -482,6 +487,8 @@ class EBFDD:
                     ground_truth.append(0)
         ground_truth = np.array(ground_truth)
         return raw_output, ground_truth
+# The RBFDD is a special case of the EBFDD network. Almost everything is the same, except for the derivatives, and computing the 
+# variances.
 class RBFDD:
     def __init__(self, dataset_name, mini_batch_size,  H, beta, theta, bp_eta, bp_epoch, normal, anomalous):
         self.H = H
@@ -507,11 +514,9 @@ class RBFDD:
         return (out)
     def clip_power(self, power):
         power[np.where(power < -1e+1000)] = -1000
-        # power[np.where(np.abs(power) < 1e-10)] = 0
         power[np.where(power > 709)] = 709
         return power
     def train(self, train_data):
-        #-----------------------------------------Scikit Kmeans starts-------------------------------------
         input_num = train_data.shape[0]
         if (input_num % self.mini_batch) == 0:
             end = 0
@@ -536,10 +541,7 @@ class RBFDD:
             else:
                 sd.append(sys.float_info.epsilon)
         sd = np.array(sd).reshape(self.H,1)
-        #-------------------------------------------------- Scikit Kmeans Ends---------------------------------
-        # Initialize the weight matrix before RBF layer and the output layer
         W = np.random.uniform(low=self.low, high=self.high, size=(self.H,))
-        # -------------------------------------------------Training Error Progress----------------------------------
         Avg_Error = []
         Avg_output = []
         Avg_sum_variances = []
@@ -551,13 +553,11 @@ class RBFDD:
         for epoch in range(self.BP_epoch):
 
             if input_dim == 2:
-                # convert sd values into equi-variance covariance matrices so we can visualize stuff
                 cov = []
                 for h in range(sd.shape[0]):
                     cov.append(sd[h]*np.identity(input_dim))
                 cov = np.array(cov)
                 if epoch % 1 == 0:
-                    # plt.subplot(2, int(self.BP_epoch / 5) + 1, counter)
                     figure()
                     plt.grid()
                     plt.scatter(train_data[:, 0], train_data[:, 1], c="r",
@@ -578,9 +578,7 @@ class RBFDD:
                             plt.xlabel("First PC", fontsize=15)
                             plt.ylabel("Second PC", fontsize=15)
                     counter = counter + 1
-                    # plt.show()
             t0 = time.time()
-            # Shuffle the received train_data
             random_index = np.arange(train_data.shape[0])
             np.random.shuffle(random_index)
             train_data = train_data[random_index]
@@ -589,47 +587,25 @@ class RBFDD:
             for i in range(int(input_num / self.mini_batch) + end):
                 X = train_data[batch_counter: batch_counter + self.mini_batch, :]
                 NUM = X.shape[0]
-                #------------------------------------ Forward pass Starts-------------------------------------
                 var = sd**2
                 a = (X - m[:, np.newaxis])
-                # b is Hxn and for every Gaussian we have n likelihoods
                 Dist = np.sum(a**2, axis=2)
                 power = np.divide(-0.50*Dist, var)
                 power = self.clip_power(power)
                 P = np.exp(power)
-                # Z(n) is what is what the output neuron has received
                 Z = np.sum((P.T * W).T, axis=0)
-                # Here we apply the Lecun's recommended tanh() function to get the outputs
-                # The output vector has n number of elements
                 y = 1.7159 * np.tanh(float(2 / 3) * Z)
-                if np.isnan(y).any() == True:
-                    print(y)
-
                 # ------------------------------------ Backward pass Starts------------------------------------
                 dEdZ = (y - 1) * (1.1439 * (1 - np.square(np.tanh(float(2 / 3) * Z))))
-                # We will have to have a ROW-WIZE multiplication of dEdZ upon P(Hxn) (i.e., P*dEdZ), so that every element of dEdZ
-                # is multiplied by its relevant likelihood (# of elements in each row of P), across ALL kernels (# of Rows in P)
-                # Then a sum across all the rows will result in a vector of size (H,), which is exactly the dEdW!!!
                 dEdW = np.sum(P * dEdZ, axis=1) + NUM * self.theta * W
-                # We do NOT update just now! This is Batch-Learning!
-                # --------------------------Let's compute the Centroid derivatives-------------------------
-                # First we will take the derivatives right uo to the Kernels' boubdaries (i.e., dEdP)
-                # We already have dEdZ, which is the common term in all our update rules. So, let's now
-                # Compute dZdP, which is a matrix the same size as P (H,n), which is nothing but a matrix
-                # of size (H,n), whose columns are exact replications of the weight vector W(H,).
                 dZdP = np.repeat([W], NUM, axis=0).T
-                # Now, having both dEdZ(n,) and dZdP(H,n) we can compute dEdP. We need every element of dEdZ
-                # To be multiplied by its corresponding column in the dZdP(H,n) matrix. np.multiply() does that!
                 dEdP = np.multiply(dEdZ, dZdP) * P
-
                 dPdM = np.divide(a,var[:, np.newaxis])
                 dEdM = np.matmul(dEdP[:,None],dPdM).reshape(self.H, input_dim)
-
                 dPdsd = np.divide(Dist, sd**3)
                 dEdsd = np.reshape(np.sum(dEdP*dPdsd, axis=1), (self.H, 1)) + self.beta*NUM*sd
 
                 # Update the parameters
-                # Update Rules
                 W = W - self.BP_eta * dEdW/NUM
                 m = m - self.BP_eta * dEdM/NUM
                 sd = sd - self.BP_eta * dEdsd/NUM
@@ -642,7 +618,6 @@ class RBFDD:
                 batch_counter = batch_counter + NUM
             t1 = time.time()
             print('Current Epoch: %d out of %d: %.5f Seconds' % (epoch + 1, self.BP_epoch, (t1 - t0)))
-            # ------------------------------------ Backward pass Ends------------------------------------
         ###################################################Visualisations##########################################
         if input_dim == 2:
             figure()
@@ -679,17 +654,9 @@ class RBFDD:
                     X = np.array([[a, b]])
                     invcov = inv(cov)
                     a = (X - m[:, np.newaxis])
-
-                    # # Optimised
                     d = np.matmul(np.matmul(a, invcov), np.transpose(a, [0, 2, 1]))
-                    #################
-                    # Now the array P(Hxn) has ALL the likelihoods of ALL the training data of ALL the Kernels
                     P = np.exp(-0.50 * np.diagonal(d, axis1=1, axis2=2))
-                    # Here we have a column-wise multiplication between P(Hxn) and Weights (CAN be BETTER CODED)
-                    # Z(n) is what is what the output neuron has received
                     Z = np.sum((P.T * W).T, axis=0)
-                    # Here we apply the Lecun's recommended tanh() function to get the outputs
-                    # The output vector has n number of elements
                     output.append(1.7159 * np.tanh(float(2 / 3) * Z))
             output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
             plt.xlim(-3, 3)
@@ -700,20 +667,16 @@ class RBFDD:
             plt.xlabel('First PC', fontsize=15)
             plt.ylabel('Second PC', fontsize=15)
             plt.show()
-        # Learn the mean of a window size of choice o the output of the trained network only on the normal data
         var = sd ** 2
         a = (train_data - m[:, np.newaxis])
-        # b is Hxn and for every Gaussian we have n likelihoods
         Dist = np.sum(a ** 2, axis=2)
         power = np.divide(-0.50 * Dist, var)
         power = self.clip_power(power)
         P = np.exp(power)
-        # Z(n) is what is what the output neuron has received
         Z = np.sum((P.T * W).T, axis=0)
-        # Here we apply the Lecun's recommended tanh() function to get the outputs
-        # The output vector has n number of elements
         trained_y = 1.7159 * np.tanh(float(2 / 3) * Z)
         return m, sd, W, trained_y
+    
     def test(self,test_data, test_labels, m, sd, W):
         input_num = test_data.shape[0]
         if (input_num % self.mini_batch) == 0:
@@ -728,15 +691,11 @@ class RBFDD:
             NUM = X.shape[0]
             var = sd ** 2
             a = (X - m[:, np.newaxis])
-            # b is Hxn and for every Gaussian we have n likelihoods
             Dist = np.sum(a ** 2, axis=2)
             power = np.divide(-0.50 * Dist, var)
             power = self.clip_power(power)
             P = np.exp(power)
-            # Z(n) is what is what the output neuron has received
             Z = np.sum((P.T * W).T, axis=0)
-            # Here we apply the Lecun's recommended tanh() function to get the outputs
-            # The output vector has n number of elements
             raw_output.append(1.7159 * np.tanh(float(2 / 3) * Z))
             batch_counter = batch_counter + NUM
         raw_output = np.concatenate(raw_output).ravel()
@@ -777,31 +736,8 @@ class OCSVM:
         clf.fit(training_data)
         # Measure the distance of the training_data from the learned hyper-plain
         train_dist = clf.decision_function(training_data)
-        # Plot the decision boundary
-        fig = plt.figure()
-        x = np.arange(-5, 5, 0.1)
-        y = np.arange(-5, 5, 0.1)
-
-        xx, yy = np.meshgrid(x, y, sparse=True)
-        output = []
-        for i in range(xx.shape[1]):
-            for j in range(yy.shape[0]):
-                a = xx[0][i]
-                b = yy[j][0]
-                c = np.array([[a, b]])
-                output.append(clf.decision_function(c))
-        output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
-        plt.xlim(-3, 3)
-        plt.ylim(-3, 3)
-        plt.axes().set_aspect('equal', 'datalim')
-        plt.contourf(x, y, output.T)
-        plt.colorbar()
-        plt.xlabel('First PC', fontsize=15)
-        plt.ylabel('Second PC', fontsize=15)
-        plt.show()
         return clf, train_dist
     def test(self, test_data, test_labels, model):
-        # In order to compute the accuracy and macro-f-measure
         raw_output = model.decision_function(test_data)
         raw_output = np.reshape(raw_output, (raw_output.shape[0],))
         # Compute Predictions and Ground-truth
@@ -862,7 +798,6 @@ class AEN:
         decoder = Model(encoded_input, decoder_layer(encoded_input))
         adam = optimizers.adam(lr=self.bp_eta)
         autoencoder.compile(optimizer=adam, loss=self.loss)
-
         # Let the actual training start
         autoencoder.fit(training_data, training_data, epochs=self.max_epoch,
                               batch_size=self.mini_batch, shuffle=True, verbose=False)
@@ -873,31 +808,6 @@ class AEN:
         reconstructed = decoder.predict(encoded_data)
         trained_Normal_E = np.subtract(training_data, reconstructed) ** 2
         trained_Normal_E = np.sum(trained_Normal_E, axis=1)
-        # Plot the decision boundary
-        plt.figure()
-        x = np.arange(-100, 100, 1)
-        y = np.arange(-100, 100, 1)
-        xx, yy = np.meshgrid(x, y, sparse=True)
-        output = []
-        for i in range(xx.shape[1]):
-            for j in range(yy.shape[0]):
-                a = xx[0][i]
-                b = yy[j][0]
-                c = np.array([[a, b]])
-                encoded_data = encoder.predict(c)
-                predict = decoder.predict(encoded_data)
-                trained_Normal_E = np.square(np.subtract(c, predict))
-                trained_Normal_E = np.sum(trained_Normal_E, axis=1)
-                output.append(-trained_Normal_E)
-        output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
-        # plt.xlim(-160, 160)
-        # plt.ylim(-160, 160)
-        # plt.axes().set_aspect('equal', 'datalim')
-        plt.contourf(x, y, output.T)
-        plt.colorbar()
-        plt.xlabel('First PC', fontsize=15)
-        plt.ylabel('Second PC', fontsize=15)
-        plt.show()
 
         return encoder, decoder, training_data, reconstructed, trained_Normal_E
     def test(self, test_data, test_labels, encoder, decoder):
@@ -912,15 +822,7 @@ class AEN:
             decoded = decoder.predict(encoded)
             raw_error.append(np.sum(np.subtract(X, decoded) ** 2, axis=1))
             batch_counter = batch_counter + NUM
-        # we will save raw_error, but we will also
         raw_error = np.concatenate(raw_error).ravel()
-
-        # encoded = encoder.predict(test_data)
-        # decoded = decoder.predict(encoded)
-
-        # Compute the error
-        # raw_error = np.sum(np.subtract(test_data, decoded) ** 2, axis=1)
-        ## Compute Predictions and Ground-truth
         ground_truth = []
         for item in test_labels:
             # All vs 1
@@ -949,28 +851,6 @@ class GMM:
         self.H = n_components
         self.normal = normal
         self.anomalous = anomalous
-    def plot_GMMs(self, GMM, train_data):
-        # Just for the sake of Visualisation let's run a few lines here
-        splot = matplotlib.pyplot.subplot(1, 1, 1)
-        Y_ = GMM.predict(train_data)
-        for i, (mean, cov) in enumerate(zip(GMM.means_, GMM.covariances_)):
-            v, w = linalg.eigh(cov)
-            if not np.any(Y_ == i):
-                continue
-            plt.scatter(train_data[Y_ == i, 0], train_data[Y_ == i, 1], .8)
-            # Plot an ellipse to show the Gaussian component
-            angle = np.arctan2(w[0][1], w[0][0])
-            angle = 180. * angle / np.pi  # convert to degrees
-            v = 2. * np.sqrt(2.) * np.sqrt(v)
-            ell = matplotlib.patches.Ellipse(mean, v[0], v[1], 180. + angle)
-            ell.set_clip_box(splot.bbox)
-            ell.set_alpha(.5)
-            splot.add_artist(ell)
-        plt.xticks(())
-        plt.yticks(())
-        plt.title('Selected GMM: Full Covariance, 2 components')
-        plt.subplots_adjust(hspace=.35, bottom=.02)
-        plt.show()
     def train(self, train_data):
         # Fit the GMM to the training data
         gmm = mixture.GaussianMixture(n_components=self.H, covariance_type='full')
@@ -978,49 +858,8 @@ class GMM:
         gmm.fit(train_data)
         # One last run through the training data to get the average likelihoods
         trained_prob = gmm.score_samples(train_data)
-        # self.plot_GMMs(gmm, train_data)
-        if train_data.shape[1] == 2:
-            xx, yy = np.mgrid[-5:5:.1, -5:5:.1]
-            pos = np.dstack((xx, yy))
-            m = gmm.means_
-            cov = gmm.covariances_
-            figure()
-            plt.grid()
-            plt.xlim(-3, 3)
-            plt.ylim(-3, 3)
-            plt.scatter(train_data[:, 0], train_data[:, 1], c="r", alpha=0.1)
-            for h in range(self.H):
-                rv = multivariate_normal(m[h], cov[h])
-                plt.xlim(-3, 3)
-                plt.ylim(-3, 3)
-                plt.axes().set_aspect('equal', 'datalim')
-                plt.contour(xx, yy, rv.pdf(pos))
-                plt.xlabel("First PC", fontsize=15)
-                plt.ylabel("Second PC", fontsize=15)
-            plt.show()
-            # Plot the decision boundary
-            plt.figure()
-            x = np.arange(-5, 5, 0.1)
-            y = np.arange(-5, 5, 0.1)
-            xx, yy = np.meshgrid(x, y, sparse=True)
-            output = []
-            for i in range(xx.shape[1]):
-                for j in range(yy.shape[0]):
-                    a = xx[0][i]
-                    b = yy[j][0]
-                    X = np.array([[a, b]])
-                    output.append(np.exp(gmm.score_samples(X)))
-            output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
-            plt.xlim(-3, 3)
-            plt.ylim(-3, 3)
-            plt.axes().set_aspect('equal', 'datalim')
-            plt.contourf(x, y, output.T)
-            plt.colorbar()
-            plt.xlabel('First PC', fontsize=15)
-            plt.ylabel('Second PC', fontsize=15)
-            plt.show()
-
         return gmm, trained_prob
+    
     def test(self, test_data, test_labels, gmm):
         raw_output = gmm.score_samples(test_data)
         prediction = gmm.predict(test_data)
@@ -1054,45 +893,16 @@ class iForest:
         self.normal = normal
         self.anomalous = anomalous
     def train(self, train_data):
-        # Create the iForest object once and train it through mini-batches
+        # Create the iForest object once and train it
         clf = IsolationForest(n_estimators=self.n_estimators, contamination=0.)
         clf.fit(train_data)
-        # Plot the scores
         trained_scores = clf.decision_function(train_data)
-        if train_data.shape[1] == 2:
-            # Plot the decision boundary
-            plt.figure()
-            x = np.arange(-5, 5, 0.1)
-            y = np.arange(-5, 5, 0.1)
-            xx, yy = np.meshgrid(x, y, sparse=True)
-            output = []
-            for i in range(xx.shape[1]):
-                for j in range(yy.shape[0]):
-                    a = xx[0][i]
-                    b = yy[j][0]
-                    X = np.array([[a, b]])
-                    output.append(clf.decision_function(X))
-            output = np.reshape(np.array(output), (xx.shape[1], yy.shape[0]))
-            plt.xlim(-3, 3)
-            plt.ylim(-3, 3)
-            plt.axes().set_aspect('equal', 'datalim')
-            plt.contourf(x, y, output.T)
-            plt.colorbar()
-            plt.xlabel('First PC', fontsize=15)
-            plt.ylabel('Second PC', fontsize=15)
-            plt.show()
-
         return clf, trained_scores
     def test(self, test_data, test_labels, clf):
         # Raw anomaly scores
         raw_output = clf.decision_function(test_data)
         # Predictions
         prediction = clf.predict(test_data)
-        # plt.hist(train_scores, fc=(0, 1, 0, 0.5))
-        # plt.hist(y, fc=(1, 0, 0, 0.5))
-        # plt.axvline(threshold, c='k')
-        # plt.show()
-
         # Compute Predictions and Ground-truth
         ground_truth = []
         for item in test_labels:
