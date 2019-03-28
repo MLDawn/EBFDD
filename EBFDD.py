@@ -360,22 +360,39 @@ class EBFDD:
         plt.ylabel('Second PC', fontsize=15)
         plt.show()
     def train(self, train_data, anomalous_data):
+        '''
+        This function will go through the epochs, at each epoch takes a separate minibatch of the entire training data
+        And calls the forwardpass and backwardpass functions, gathers the gradiens and at the end of a minibatch
+        It updates the parameters of the network.
+        Inputs:
+            - The traindata that is the entire training set
+            - The anomalous_data: This has NO role in the training but could be used for plotting purpose for the plot_gaussians function
+        Outputs:
+            - m: The final trained centroids (means)
+            - cov: The final trained covariance matrices
+            - W: The final trained weight vector
+            - trained_y: The output of the final trained network on the ENTIRE training set. The goal is to collect the expected
+                         outputs of the trained network on the training set for threshold computation during testing, shoudl we 
+                         be interested. HOWEVER, in this work we are using AUC scores and we are not concerned with thresholding
+        '''
         input_num = train_data.shape[0]
         input_dim = train_data.shape[1]
+        # Compute the ending of the minibatches (Helps computing the exact number of minibatches in the training set)
         if (input_num % self.mini_batch) == 0:
             end = 0
         else:
             end = 1
-        input_dim = train_data.shape[1]
         # Pre-training Stage
         [cov, m] = self.kmeans(train_data)
         # Initiating the Weights
         W = np.random.uniform(low=self.low, high=self.high, size=(self.H,))
+        # These statistics will be used for plotting purposes for the statistics
         Avg_Error = []
         Avg_output = []
         Avg_sum_variances = []
         Avg_l2_weights = []
-
+        
+        # The epochs start here
         for epoch in range(self.BP_epoch):
 
             if input_dim == 2 and epoch % 10 == 0:
@@ -386,31 +403,37 @@ class EBFDD:
             np.random.shuffle(random_index)
             train_data = train_data[random_index]
             batch_counter = 0
+            # We go through every minibatch
             for i in range(int(input_num / self.mini_batch) + end):
+                # Grab the current minibatch
                 X = train_data[batch_counter: batch_counter + self.mini_batch, :]
+                # Get its size
                 NUM = X.shape[0]
+                # Do forwardpass on the current minibatch
                 [y, P, Z, a] = self.ebfdd_forward(X, m, cov, W)
+                # Gather the gradients for the current minibatch
                 [dEdW, dEdCov, dEdM] = self.ebfdd_backward(y, P, Z, a, cov, W, NUM)
-                # Update Rules
+                # Update the parameters with the collected gradients for the entire minibatch --> Mini-Batch learning
+                # We divide the gradients by NUM, which regularates the gradients without changing their direction
                 W = W - self.BP_eta*dEdW/NUM
                 m = m - self.BP_eta*dEdM/NUM
                 cov = cov - self.BP_eta*dEdCov/NUM
-
+                # This part is again for plotting purposes
                 cost = np.mean(0.50*((1 - y) + self.beta*np.sum(np.diagonal(cov, axis1=1, axis2=2)**2) + self.theta*np.sum(W**2)))
                 Avg_Error.append(cost)
                 Avg_l2_weights.append(np.sum(W**2))
                 Avg_output.append(np.mean(y))
                 Avg_sum_variances.append(np.sum(np.diagonal(cov, axis1=1, axis2=2)))
+                # The starting point of the next minibatch
                 batch_counter = batch_counter + NUM
             t1 = time.time()
             print('Current Epoch: %d out of %d: %.2f Seconds' % (epoch+1, self.BP_epoch, (t1-t0)))
-
+        # Plottings that could happen should we wish
         if self.statistics:
             self.plot_statistics(Avg_Error, Avg_output, Avg_l2_weights, Avg_sum_variances)
         if self.boundary:
             self.plot_decision_boundary(cov, m, W)
-        # ------------------------------------ Backward pass Ends------------------------------------
-        # Learn the mean of a window size of choice o the output of the trained network only on the normal data
+        ##################################### Collecting the outputs of the trained network on the ENTIRE training data ############
         batch_counter = 0
         trained_y = []
         for i in range(int(input_num / self.mini_batch) + end):
